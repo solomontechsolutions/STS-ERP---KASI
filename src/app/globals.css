@@ -1,26 +1,81 @@
 @import "tailwindcss";
 
+/*
+ * KASI design tokens — reuses the STS public-brand palette (Section 13.4 of
+ * the build brief) so the internal ERP reads as the same company, but stays
+ * strictly in the navy/charcoal/cyan/teal family. No amber/gold anywhere in
+ * this file: that color is reserved for the KASI-WIFI product accent only
+ * (Section 13.5) and deliberately kept out of the ERP chrome to avoid the
+ * two products being visually confused.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --sts-navy: #1b3e6b;
+  --sts-navy-deep: #0f2647;
+  --sts-charcoal: #2a2e33;
+  --sts-cyan: #4fb6d9;
+  --sts-teal: #1e7a8c;
+  --sts-cloud: #f5f7fa;
+  --sts-line: #e4e8ef;
+  --sts-white: #ffffff;
+
+  --status-success: #1e8a5f;
+  --status-warning: #b45309;
+  --status-danger: #c0293b;
+  --status-info: var(--sts-cyan);
+
+  --background: var(--sts-cloud);
+  --surface: var(--sts-white);
+  --foreground: var(--sts-charcoal);
+  --muted-foreground: #6b7280;
+  --border: var(--sts-line);
+  --primary: var(--sts-navy);
+  --primary-foreground: var(--sts-white);
+  --accent: var(--sts-cyan);
+  --sidebar-bg: var(--sts-navy-deep);
+  --sidebar-foreground: #cbd8e8;
+  --sidebar-foreground-active: var(--sts-white);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-teal: var(--sts-teal);
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-foreground-active: var(--sidebar-foreground-active);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-danger: var(--status-danger);
+  --color-status-info: var(--status-info);
+
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-space-grotesk);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading), var(--font-sans), sans-serif;
+}
+
+.font-tabular {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }

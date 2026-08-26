@@ -1,0 +1,217 @@
+// KASI ERP — Phase 2 foundation schema
+// Scope: auth identity, RBAC (composable permission bundles), company record,
+// director/shareholder/employee identity linkage, generic documents, audit log.
+// Business modules (finance, payroll, assets, sales, etc.) are added in Phase 4+.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Company (single row — STS is a single-tenant company)
+// ---------------------------------------------------------------------------
+
+model Company {
+  id                      String   @id @default(cuid())
+  legalName               String
+  tradingName             String?
+  brelaNumber             String
+  tin                     String
+  tinEffectiveDate        DateTime?
+  taxOffice               String?
+  incorporationDate       DateTime
+  registeredOfficeAddress String
+  poBox                   String?
+  accountingReferenceDate String? // e.g. "28 February"
+  shareCapitalAmount      Decimal  @db.Decimal(14, 2)
+  totalShares             Int
+  parValuePerShare        Decimal  @db.Decimal(10, 2)
+  businessActivities      Json? // array of {code, description}
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Auth identity + RBAC
+// A User can optionally link to an Employee and/or a Director and/or a
+// Shareholder record — these are independent facets, not a rigid hierarchy,
+// because real people at STS hold more than one at once (e.g. a Director who
+// is also the Company Secretary, or a future Director who also draws salary
+// as an Employee).
+// ---------------------------------------------------------------------------
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  name              String
+  passwordHash      String
+  mustResetPassword Boolean    @default(true)
+  isActive          Boolean    @default(true)
+  lastLoginAt       DateTime?
+
+  employee    Employee?
+  director    Director?
+  shareholder Shareholder?
+
+  roles             UserRole[]
+  auditLogEntries   AuditLog[] @relation("ActorAuditLogs")
+  documentsUploaded Document[] @relation("DocumentUploader")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// A Role is a named, composable permission bundle (Section 6.1/6.2 of the
+// brief) — e.g. "director", "company_secretary", "finance", "hr",
+// "management_admin", "employee". Users can hold multiple roles at once.
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // machine key, e.g. "finance"
+  label       String // display name, e.g. "Finance"
+  description String?
+  isSystem    Boolean  @default(false) // seeded baseline role vs custom
+
+  permissions Permission[]
+  users       UserRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// One row per (role, module, verb) grant. Modules and verbs are free-form
+// strings (not enums) so new modules can be added without a migration —
+// verbs follow Section 6.2: view, create, edit, delete, approve, export,
+// upload, download, finalize.
+model Permission {
+  id     String @id @default(cuid())
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module String
+  verb   String
+
+  @@unique([roleId, module, verb])
+}
+
+model UserRole {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId      String
+  role        Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  grantedAt   DateTime @default(now())
+  grantedById String?
+
+  @@unique([userId, roleId])
+}
+
+// ---------------------------------------------------------------------------
+// Employee / Director / Shareholder identity (Phase 4/5 modules attach their
+// own tables — leave, payroll, assets, resolutions — onto these later)
+// ---------------------------------------------------------------------------
+
+model Employee {
+  id             String    @id @default(cuid())
+  userId         String?   @unique
+  user           User?     @relation(fields: [userId], references: [id])
+  employeeNumber String    @unique
+  fullName       String
+  jobTitle       String
+  department     String
+  site           String? // e.g. "Mwanza / SAUT" for field staff
+  employmentStatus String  @default("active") // active, on_leave, terminated
+  dateJoined     DateTime? // not confirmed in source records for the initial seed — see PROJECT_NOTES.md
+  reportsTo      String?
+  grossSalary    Decimal?  @db.Decimal(14, 2)
+  leaveEntitlementDays Int  @default(28) // ELRA default
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Director {
+  id                     String    @id @default(cuid())
+  userId                 String?   @unique
+  user                   User?     @relation(fields: [userId], references: [id])
+  fullName               String
+  isCompanySecretary     Boolean   @default(false)
+  isPrimaryBankSignatory Boolean   @default(false)
+  appointedDate          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Shareholder {
+  id          String            @id @default(cuid())
+  userId      String?           @unique
+  user        User?             @relation(fields: [userId], references: [id])
+  fullName    String
+  allocations ShareAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Dated cap-table entries so historical changes (e.g. the Feb 2026
+// partnership-deed addendum) can be recorded without overwriting history.
+model ShareAllocation {
+  id            String      @id @default(cuid())
+  shareholderId String
+  shareholder   Shareholder @relation(fields: [shareholderId], references: [id], onDelete: Cascade)
+  shares        Int
+  percent       Decimal     @db.Decimal(5, 2)
+  effectiveDate DateTime
+  source        String? // e.g. "BRELA consolidated registration, 25 Feb 2026"
+  note          String?
+
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Generic polymorphic attachments (Section 11) and append-only audit trail
+// (Section 18) — every business module hangs off these rather than each
+// inventing its own file/history handling.
+// ---------------------------------------------------------------------------
+
+model Document {
+  id           String   @id @default(cuid())
+  entityType   String // e.g. "employee", "asset", "bank_transaction"
+  entityId     String
+  category     String // e.g. "contract", "invoice", "governance", "receipt"
+  filename     String
+  storageKey   String // object storage key/URL, never base64 in DB
+  mimeType     String
+  sizeBytes    Int
+  version      Int      @default(1)
+  tags         Json?
+  description  String?
+  uploadedById String
+  uploadedBy   User     @relation("DocumentUploader", fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+// Append-only. No application code path may update or delete rows here.
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String // create, update, delete, approve, reject, finalize, login, ...
+  beforeData Json?
+  afterData  Json?
+  actorId    String?
+  actor      User?    @relation("ActorAuditLogs", fields: [actorId], references: [id])
+  ipAddress  String?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}

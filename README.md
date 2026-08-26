@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KASI
 
-## Getting Started
+Internal operating system for Solomon Tech Solutions Limited (STS). See
+`PROJECT_NOTES.md` for the full build brief context, phase status, and open
+decisions — read that before making structural changes.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Next.js 16 (App Router, TypeScript) · PostgreSQL via Prisma 7 (`@prisma/adapter-pg`)
+· Auth.js v5 (Credentials + JWT sessions) · Tailwind CSS v4 · Zod v4
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Getting started
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Copy `.env.example` to `.env.local` and fill in a real Postgres connection
+   string (e.g. from Neon or Supabase) and an `AUTH_SECRET`
+   (`npx auth secret`).
+2. Install dependencies: `npm install`
+3. Apply the schema: `npm run db:migrate`
+4. Seed the company record, RBAC roles, and the nine initial users:
+   `npm run db:seed` — this prints each user's one-time temporary password
+   to the console. Deliver these out-of-band; nothing is written to disk.
+5. `npm run dev` and sign in at `/login`. First login forces a password
+   reset (`/reset-password`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+- `npm run dev` / `npm run build` / `npm run start`
+- `npm run lint`
+- `npm run db:migrate` — `prisma migrate dev`
+- `npm run db:seed` — re-runnable; skips users/company that already exist
+- `npm run db:studio` — Prisma Studio
 
-To learn more about Next.js, take a look at the following resources:
+## Project layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `prisma/schema.prisma` — foundation schema (auth/RBAC, company, director/
+  shareholder/employee identity, generic documents, append-only audit log).
+  Business-module tables (finance, assets, payroll, sales, etc.) are added
+  in later phases.
+- `prisma.config.ts` — Prisma 7 config-first datasource (connection URL for
+  Migrate lives here, not in `schema.prisma`).
+- `src/auth.ts` / `src/proxy.ts` — Auth.js config and route protection.
+  Next.js 16 renamed `middleware.ts` to `proxy.ts`.
+- `src/lib/rbac.ts` — the seeded permission bundles (Section 6 of the brief).
+- `src/lib/nav.ts` — sidebar navigation, gated per-module by permission.
+- `src/app/(app)/` — the authenticated shell. Most module pages are stub
+  "not built yet" screens until their phase lands — see `PROJECT_NOTES.md`.
