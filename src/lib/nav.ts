@@ -25,6 +25,18 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+/**
+ * The subset of a nav group that may cross the Server -> Client Component
+ * boundary. `NavGroup.icon` is a React component, and React cannot serialize
+ * a component into a Client Component's props — passing a whole `NavGroup`
+ * throws "Functions cannot be passed directly to Client Components" at
+ * render time. Keep client props to this shape.
+ */
+export type SerializableNavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
 // Section 13.1 grouping. Modules not yet built (Phase 4+) still appear here
 // so the navigation shape is right from day one — each links to a route
 // that renders a real "not built yet" empty state rather than 404ing.

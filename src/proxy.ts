@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/auth.config";
+
+// Built from the database-free half of the config on purpose — see
+// src/auth.config.ts. The proxy only decodes the session cookie.
+const { auth } = NextAuth(authConfig);
 
 const PUBLIC_PATHS = ["/login"];
 

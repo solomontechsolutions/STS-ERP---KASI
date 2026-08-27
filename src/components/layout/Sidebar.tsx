@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
-import type { NavGroup } from "@/lib/nav";
+import type { SerializableNavGroup } from "@/lib/nav";
 
-export function Sidebar({ groups }: { groups: NavGroup[] }) {
+export function Sidebar({ groups }: { groups: SerializableNavGroup[] }) {
   const pathname = usePathname();
 
   return (

@@ -33,6 +33,40 @@ class LocalDiskStorage implements StorageAdapter {
   }
 }
 
-// TODO before any non-local deployment: replace with an S3-compatible or
-// Vercel Blob adapter (STORAGE_* env vars are already stubbed in .env.example).
-export const storage: StorageAdapter = new LocalDiskStorage();
+/**
+ * Serverless filesystems are read-only apart from /tmp, and /tmp does not
+ * survive between invocations. Rather than let uploads fail with a bare
+ * `EROFS` — or, worse, appear to succeed and then lose the file — refuse to
+ * use the dev adapter anywhere it cannot work, and say why.
+ */
+class UnconfiguredStorage implements StorageAdapter {
+  private fail(): never {
+    throw new Error(
+      "No object storage is configured. The local-disk adapter cannot be used on a " +
+        "serverless/read-only filesystem — uploaded documents would be lost. Implement " +
+        "an S3-compatible or Vercel Blob StorageAdapter in src/lib/storage.ts before " +
+        "using documents in this environment.",
+    );
+  }
+
+  async put() {
+    this.fail();
+  }
+  async read(): Promise<Buffer> {
+    this.fail();
+  }
+  async delete() {
+    this.fail();
+  }
+}
+
+// TODO before relying on documents in production: replace with an
+// S3-compatible or Vercel Blob adapter (STORAGE_* env vars are already
+// stubbed in .env.example) and return it from here unconditionally.
+const isEphemeralFilesystem = Boolean(
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME,
+);
+
+export const storage: StorageAdapter = isEphemeralFilesystem
+  ? new UnconfiguredStorage()
+  : new LocalDiskStorage();
