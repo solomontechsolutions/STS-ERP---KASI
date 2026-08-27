@@ -22,6 +22,27 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+let client: PrismaClient | undefined;
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+function getClient(): PrismaClient {
+  client ??= globalForPrisma.prisma ?? createPrismaClient();
+  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
+  return client;
+}
+
+/**
+ * Built on first use rather than on import.
+ *
+ * `next build` evaluates every route's module scope to collect its config, so
+ * a client constructed at import time demands a database during the build.
+ * That breaks the first deploy of a new project, which has no database yet —
+ * and it cannot get one until the project exists. Deferring construction to
+ * the first actual query keeps the build independent of the database, while
+ * a request that really does need data still fails loudly and early.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const value = Reflect.get(getClient(), property);
+    return typeof value === "function" ? value.bind(getClient()) : value;
+  },
+});
