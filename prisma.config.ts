@@ -1,15 +1,18 @@
 import { config as loadEnv } from "dotenv";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
+import { getMigrationDatabaseUrl } from "./src/lib/db-url";
 
 loadEnv({ path: ".env.local" });
 
-// `prisma generate` runs during the production build (e.g. on Vercel) where a
-// database URL is neither present nor needed — only migration/introspection
-// commands connect. Attach the datasource lazily so a missing DATABASE_URL
-// fails those commands with Prisma's own message instead of breaking the build.
-const datasource = process.env.DATABASE_URL
-  ? { url: env("DATABASE_URL") }
-  : undefined;
+// Migrations need a DIRECT (session-mode) connection, not the pooled one the
+// app uses at runtime — transaction pooling does not hold a session across
+// statements, which migrations need for advisory locks and DDL.
+//
+// The datasource is attached only when a URL is available: `prisma generate`
+// runs during the production build and needs no database, so a missing URL
+// must not break the build. Commands that do connect fail with Prisma's own
+// "datasource required" message instead.
+const url = getMigrationDatabaseUrl();
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -17,5 +20,5 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
   },
-  datasource,
+  datasource: url ? { url } : undefined,
 });
