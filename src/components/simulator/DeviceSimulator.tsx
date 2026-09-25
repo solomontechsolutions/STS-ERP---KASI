@@ -1,13 +1,42 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link2, Link2Off, Monitor, RotateCw, Smartphone } from "lucide-react";
+import {
+  Apple,
+  BellRing,
+  CheckCircle2,
+  Circle,
+  Download,
+  Link2,
+  Link2Off,
+  Lock,
+  Monitor,
+  RotateCw,
+  Smartphone,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
+import { sendTestPushAction } from "@/lib/actions/notifications";
 
 const DESKTOP = { width: 1440, height: 900 };
 const PHONE = { width: 390, height: 844 }; // iPhone 12 to 15 viewport
 
 type QuickLink = { label: string; href: string };
+export type Area = { group: string; label: string; href: string; planned: boolean };
+
+const VISITED_KEY = "kasi-sim-visited";
+
+function matchesArea(path: string, href: string) {
+  const bare = path.split("?")[0];
+  return href === "/" ? bare === "/" : bare === href || bare.startsWith(`${href}/`);
+}
+
+function loadVisited(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(VISITED_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
 
 /** Never let the simulator load itself inside its own frames. */
 function safePath(path: string) {
@@ -30,7 +59,15 @@ function currentPath(frame: HTMLIFrameElement | null): string | null {
  * session), so whatever was last deployed is what appears. With "Linked"
  * on, navigating in either frame moves the other to the same page.
  */
-export function DeviceSimulator({ quickLinks, initialPath }: { quickLinks: QuickLink[]; initialPath: string }) {
+export function DeviceSimulator({
+  quickLinks,
+  areas,
+  initialPath,
+}: {
+  quickLinks: QuickLink[];
+  areas: Area[];
+  initialPath: string;
+}) {
   const desktopRef = useRef<HTMLIFrameElement>(null);
   const phoneRef = useRef<HTMLIFrameElement>(null);
   const desktopBox = useRef<HTMLDivElement>(null);
@@ -43,6 +80,35 @@ export function DeviceSimulator({ quickLinks, initialPath }: { quickLinks: Quick
   // following a click inside one frame never reloads it from scratch.
   const [frameSrc, setFrameSrc] = useState(safePath(initialPath));
   const last = useRef({ desktop: path, phone: path });
+  const [visited, setVisited] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+
+
+  // Tick off every area either device has shown.
+  const markVisited = useCallback(
+    (p: string) => {
+      const hit = areas.filter((a) => matchesArea(p, a.href)).map((a) => a.href);
+      if (hit.length === 0) return;
+      setVisited((prev) => {
+        const next = [...new Set([...prev, ...hit])];
+        if (next.length === prev.length) return prev;
+        try {
+          localStorage.setItem(VISITED_KEY, JSON.stringify(next));
+        } catch {
+          // Progress just won't survive a reload.
+        }
+        return next;
+      });
+    },
+    [areas],
+  );
+
+  // Restore progress from earlier runs and count the opening page.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- progress is kept in this browser
+    setVisited(loadVisited());
+    markVisited(safePath(initialPath));
+  }, [initialPath, markVisited]);
 
   // Fit the 1440px desktop viewport into the available column width.
   useEffect(() => {
@@ -56,12 +122,28 @@ export function DeviceSimulator({ quickLinks, initialPath }: { quickLinks: Quick
   const go = useCallback((next: string) => {
     const p = safePath(next);
     last.current = { desktop: p, phone: p };
+    markVisited(p);
     setPath(p);
     setInput(p);
     for (const f of [desktopRef.current, phoneRef.current]) {
       if (f && currentPath(f) !== p) f.src = p;
     }
-  }, []);
+  }, [markVisited]);
+
+  /** Fires a test scenario inside the phone frame (see InstallPrompt, AppLock). */
+  function simulate(scenario: string) {
+    const win = phoneRef.current?.contentWindow as (Window & typeof globalThis) | null | undefined;
+    if (!win) return;
+    win.dispatchEvent(new win.CustomEvent("kasi:sim", { detail: { scenario } }));
+  }
+
+  async function testNotification() {
+    setNotice("Sending…");
+    await sendTestPushAction();
+    setNotice("Sent to every device you enabled, and to your KASI inbox.");
+    go("/notifications");
+    for (const f of [desktopRef.current, phoneRef.current]) f?.contentWindow?.location.reload();
+  }
 
   // Follow navigation inside either frame. Next.js navigates without a full
   // page load, so the frames are polled rather than waiting for "load".
@@ -73,16 +155,18 @@ export function DeviceSimulator({ quickLinks, initialPath }: { quickLinks: Quick
         last.current.desktop = d;
         setInput(d);
         setPath(d);
+        markVisited(d);
         if (linked && ph !== d) go(d);
       } else if (ph && ph !== last.current.phone) {
         last.current.phone = ph;
         setInput(ph);
         setPath(ph);
+        markVisited(ph);
         if (linked && d !== ph) go(ph);
       }
     }, 600);
     return () => clearInterval(timer);
-  }, [linked, go]);
+  }, [linked, go, markVisited]);
 
   // Opened from the menu inside one of the preview frames: don't nest.
   const [framed, setFramed] = useState(false);
@@ -157,6 +241,32 @@ export function DeviceSimulator({ quickLinks, initialPath }: { quickLinks: Quick
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
+        <span className="mr-1 text-[13px] font-semibold">Test on the phone:</span>
+        {[
+          { key: "install-ios", icon: Apple, label: "iPhone install prompt" },
+          { key: "install-android", icon: Download, label: "Android install prompt" },
+          { key: "lock", icon: Lock, label: "App lock screen" },
+        ].map((sc) => (
+          <button
+            key={sc.key}
+            type="button"
+            onClick={() => simulate(sc.key)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[13px] hover:bg-background"
+          >
+            <sc.icon className="h-4 w-4 text-primary" /> {sc.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={testNotification}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[13px] hover:bg-background"
+        >
+          <BellRing className="h-4 w-4 text-primary" /> Test notification
+        </button>
+        {notice && <span className="text-[12px] text-muted-foreground">{notice}</span>}
+      </div>
+
       <div className="flex flex-col xl:flex-row gap-6 items-start">
         <section className="w-full xl:flex-1 min-w-0">
           <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -205,6 +315,72 @@ export function DeviceSimulator({ quickLinks, initialPath }: { quickLinks: Quick
                 style={{ width: PHONE.width, height: PHONE.height, transform: `scale(${phoneScale})` }}
               />
             </div>
+          </div>
+        </section>
+      </div>
+
+      <div>
+        <section className="rounded-lg border border-border bg-surface p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[15px] font-semibold">
+              Every area{" "}
+              <span className="font-normal text-muted-foreground">
+                ({areas.filter((a) => visited.includes(a.href)).length} of {areas.length} opened)
+              </span>
+            </h2>
+            <button
+              type="button"
+              onClick={() => {
+                setVisited([]);
+                try {
+                  localStorage.removeItem(VISITED_KEY);
+                } catch {
+                  // Nothing stored.
+                }
+              }}
+              className="text-[13px] text-primary"
+            >
+              Start over
+            </button>
+          </div>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-background">
+            <div
+              className="h-full rounded-full bg-[#34c759] transition-all"
+              style={{ width: `${(areas.filter((a) => visited.includes(a.href)).length / Math.max(1, areas.length)) * 100}%` }}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-6">
+            {[...new Set(areas.map((a) => a.group))].map((group) => (
+              <div key={group} className="mb-3">
+                <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{group}</p>
+                <ul>
+                  {areas
+                    .filter((a) => a.group === group)
+                    .map((a) => {
+                      const done = visited.includes(a.href);
+                      return (
+                        <li key={a.href}>
+                          <button
+                            type="button"
+                            onClick={() => go(a.href)}
+                            className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[14px] hover:bg-background"
+                          >
+                            {done ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#34c759]" />
+                            ) : (
+                              <Circle className="h-4 w-4 shrink-0 text-border" />
+                            )}
+                            <span className="flex-1">{a.label}</span>
+                            {a.planned && (
+                              <span className="rounded-full bg-background px-2 text-[11px] text-muted-foreground">coming later</span>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                </ul>
+              </div>
+            ))}
           </div>
         </section>
       </div>

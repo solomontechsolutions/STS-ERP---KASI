@@ -10,6 +10,7 @@ import { recordAudit } from "@/lib/audit";
 import { getRequestMeta } from "@/lib/request-meta";
 import { notifyUsers } from "@/lib/notifications";
 import { agreementStyleProblems, hashAgreementBody } from "@/lib/boardroom/agreements";
+import { finishAuthentication } from "@/lib/passkeys";
 import {
   canAdministerBoardroom,
   getBoardMember,
@@ -25,7 +26,9 @@ function normalizeName(name: string) {
 const signSchema = z.object({
   templateId: z.string().min(1),
   signedName: z.string().trim().min(3, "Type your full name."),
-  password: z.string().min(1, "Enter your KASI password to confirm."),
+  password: z.string().optional(),
+  passkeyChallengeId: z.string().optional(),
+  passkeyResponse: z.string().optional(),
   signatureImage: z
     .string()
     .startsWith("data:image/png;base64,", "Draw your signature in the box.")
@@ -35,8 +38,9 @@ const signSchema = z.object({
 
 /**
  * Signing needs three things, each recorded as evidence: the typed full name
- * (must match the account name), a drawn signature, and the account password
- * re-entered, so a signature cannot be given from an unlocked device left
+ * (must match the account name), a drawn signature, and proof the owner is
+ * present (Face ID / fingerprint on a registered device, or the password
+ * re-entered), so a signature cannot be given from an unlocked device left
  * unattended. The SHA-256 of the exact text signed is stored with it.
  */
 export async function signAgreementAction(
@@ -64,7 +68,17 @@ export async function signAgreementAction(
   if (normalizeName(input.signedName) !== normalizeName(user.name)) {
     return { error: `Type your full name exactly as registered: ${user.name}.` };
   }
-  if (!(await bcrypt.compare(input.password, user.passwordHash))) {
+  // Confirmed either by Face ID / fingerprint (a passkey of this user) or
+  // by re-entering the password.
+  if (input.passkeyChallengeId && input.passkeyResponse) {
+    try {
+      await finishAuthentication("verify", input.passkeyChallengeId, JSON.parse(input.passkeyResponse), user.id);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Your device could not be verified." };
+    }
+  } else if (!input.password) {
+    return { error: "Confirm with Face ID or fingerprint, or enter your KASI password." };
+  } else if (!(await bcrypt.compare(input.password, user.passwordHash))) {
     return { error: "Password is incorrect." };
   }
   if (hashAgreementBody(template.body) !== template.contentHash) {

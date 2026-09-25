@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
+import { Lock } from "lucide-react";
 import { signIn } from "@/auth";
+import { PasskeySignInButton } from "@/components/auth/PasskeySignInButton";
 
 export default async function LoginPage({
   searchParams,
@@ -8,7 +10,9 @@ export default async function LoginPage({
   const params = await searchParams;
   const error = typeof params.error === "string" ? params.error : undefined;
   const callbackUrl =
-    typeof params.callbackUrl === "string" ? params.callbackUrl : "/";
+    typeof params.callbackUrl === "string" && params.callbackUrl.startsWith("/") && !params.callbackUrl.startsWith("//")
+      ? params.callbackUrl
+      : "/";
 
   async function authenticate(formData: FormData) {
     "use server";
@@ -28,64 +32,84 @@ export default async function LoginPage({
     }
   }
 
+  const field =
+    "w-full rounded-xl border border-border bg-white px-4 py-3 text-[15px] outline-none transition focus:border-accent focus:ring-4 focus:ring-accent/20";
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-sidebar px-4">
-      <div className="w-full max-w-sm rounded-xl bg-surface p-8 shadow-lg">
-        <div className="mb-6 text-center">
-          <p className="font-heading text-2xl font-bold text-primary">KASI</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Solomon Tech Solutions — internal system
-          </p>
+    <div className="relative min-h-screen overflow-hidden bg-[#07162b] px-4 py-10 flex items-center justify-center">
+      {/* Soft light behind the card: navy to STS cyan, nothing louder. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(60% 50% at 20% 10%, rgba(79,182,217,0.28), transparent 70%), radial-gradient(50% 45% at 90% 90%, rgba(30,122,140,0.30), transparent 70%), linear-gradient(180deg, #0f2647 0%, #07162b 100%)",
+        }}
+      />
+
+      <div className="relative w-full max-w-[400px] animate-[kasi-fade_0.4s_ease-out]">
+        <div className="mb-8 text-center text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element -- static app icon */}
+          <img
+            src="/icons/icon-192.png"
+            alt=""
+            className="mx-auto mb-4 h-16 w-16 rounded-[1.1rem] shadow-[0_10px_30px_rgba(0,0,0,0.35)] ring-1 ring-white/15"
+          />
+          <h1 className="text-[28px] font-semibold tracking-tight">Welcome to KASI</h1>
+          <p className="mt-1 text-[15px] text-white/65">Solomon Tech Solutions</p>
         </div>
 
-        {error && (
-          <p className="mb-4 rounded-md bg-status-danger/10 px-3 py-2 text-sm text-status-danger">
-            Invalid email or password.
-          </p>
-        )}
+        <div className="rounded-[1.75rem] border border-white/50 bg-white/[0.94] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-2xl sm:p-7">
+          <PasskeySignInButton callbackUrl={callbackUrl} />
 
-        <form action={authenticate} className="space-y-4">
-          <input type="hidden" name="callbackUrl" value={callbackUrl} />
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium mb-1"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder="name@solomontechsolutions.com"
-              className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-            />
+          <div className="my-5 flex items-center gap-3 text-[12px] uppercase tracking-wider text-muted-foreground">
+            <span className="h-px flex-1 bg-border" /> or use your password <span className="h-px flex-1 bg-border" />
           </div>
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium mb-1"
-            >
-              Password
+
+          {error && (
+            <p className="mb-4 rounded-xl bg-status-danger/10 px-3 py-2 text-[13px] text-status-danger">
+              Invalid email or password.
+            </p>
+          )}
+
+          <form action={authenticate} className="space-y-3">
+            <input type="hidden" name="callbackUrl" value={callbackUrl} />
+            <label className="block">
+              <span className="sr-only">Email</span>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                autoComplete="username webauthn"
+                placeholder="name@solomontechsolutions.com"
+                className={field}
+              />
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-          >
-            Sign in
-          </button>
-        </form>
+            <label className="block">
+              <span className="sr-only">Password</span>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="Password"
+                className={field}
+              />
+            </label>
+            <button
+              type="submit"
+              className="w-full rounded-2xl bg-primary py-3.5 text-[15px] font-semibold text-primary-foreground transition hover:opacity-95 active:scale-[0.99]"
+            >
+              Sign in
+            </button>
+          </form>
+        </div>
+
+        <p className="mt-6 flex items-center justify-center gap-1.5 text-[12px] text-white/50">
+          <Lock className="h-3.5 w-3.5" /> Private system for STS directors and staff
+        </p>
       </div>
     </div>
   );

@@ -24,6 +24,8 @@ export type NavItem = {
    * "everyone" means any signed-in user.
    */
   module: Module | "board" | "everyone";
+  /** Still a "not built yet" page; the preview's test checklist marks it. */
+  planned?: boolean;
 };
 
 export type NavGroup = {
@@ -86,9 +88,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Finance",
     icon: Landmark,
     items: [
-      { label: "Accounting", href: "/finance/accounting", module: "finance" },
-      { label: "Banking & reconciliation", href: "/finance/banking", module: "banking" },
-      { label: "Payroll", href: "/finance/payroll", module: "payroll" },
+      { label: "Accounting", href: "/finance/accounting", module: "finance", planned: true },
+      { label: "Banking & reconciliation", href: "/finance/banking", module: "banking", planned: true },
+      { label: "Payroll", href: "/finance/payroll", module: "payroll", planned: true },
       { label: "Revenue reports", href: "/finance/reports", module: "banking" },
     ],
   },
@@ -101,46 +103,47 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Commercial",
     icon: ShoppingCart,
     items: [
-      { label: "Subscriber revenue", href: "/commercial/subscribers", module: "sales_subscriber" },
-      { label: "Customers & contracts", href: "/commercial/customers", module: "sales_institutional" },
-      { label: "Suppliers & purchasing", href: "/commercial/purchasing", module: "purchasing" },
+      { label: "Subscriber revenue", href: "/commercial/subscribers", module: "sales_subscriber", planned: true },
+      { label: "Customers & contracts", href: "/commercial/customers", module: "sales_institutional", planned: true },
+      { label: "Suppliers & purchasing", href: "/commercial/purchasing", module: "purchasing", planned: true },
     ],
   },
   {
     label: "Assets",
     icon: Boxes,
     items: [
-      { label: "Fixed assets", href: "/assets/register", module: "assets" },
-      { label: "Inventory", href: "/assets/inventory", module: "inventory" },
+      { label: "Fixed assets", href: "/assets/register", module: "assets", planned: true },
+      { label: "Inventory", href: "/assets/inventory", module: "inventory", planned: true },
     ],
   },
   {
     label: "Projects",
     icon: FolderKanban,
-    items: [{ label: "Projects & sites", href: "/projects", module: "projects" }],
+    items: [{ label: "Projects & sites", href: "/projects", module: "projects", planned: true }],
   },
   {
     label: "Governance",
     icon: ShieldCheck,
     items: [
-      { label: "Directors & shareholders", href: "/governance/people", module: "governance" },
-      { label: "Company records", href: "/governance/records", module: "governance" },
+      { label: "Directors & shareholders", href: "/governance/people", module: "governance", planned: true },
+      { label: "Company records", href: "/governance/records", module: "governance", planned: true },
     ],
   },
   {
     label: "Documents",
     icon: FileText,
-    items: [{ label: "All documents", href: "/documents", module: "documents" }],
+    items: [{ label: "All documents", href: "/documents", module: "documents", planned: true }],
   },
   {
     label: "Approvals",
     icon: ClipboardCheck,
-    items: [{ label: "My approvals", href: "/approvals", module: "approvals" }],
+    items: [{ label: "My approvals", href: "/approvals", module: "approvals", planned: true }],
   },
   {
     label: "Settings",
     icon: Settings,
     items: [
+      { label: "Security & device", href: "/settings/security", module: "everyone" },
       { label: "Company", href: "/settings/company", module: "settings" },
       { label: "Users & access", href: "/settings/access", module: "settings" },
     ],

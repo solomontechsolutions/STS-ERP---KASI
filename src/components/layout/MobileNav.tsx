@@ -17,6 +17,13 @@ export function MobileNav({ groups }: { groups: SerializableNavGroup[] }) {
     setOpen(false);
   }, [pathname]);
 
+  // The "More" tab in the phone tab bar opens this drawer.
+  useEffect(() => {
+    const open = () => setOpen(true);
+    window.addEventListener("kasi:open-menu", open);
+    return () => window.removeEventListener("kasi:open-menu", open);
+  }, []);
+
   return (
     <div className="md:hidden">
       <button
@@ -29,8 +36,8 @@ export function MobileNav({ groups }: { groups: SerializableNavGroup[] }) {
       </button>
       {open && (
         <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="relative flex w-72 max-w-[85vw] flex-col bg-sidebar text-sidebar-foreground shadow-xl">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-[kasi-fade_0.2s_ease-out]" onClick={() => setOpen(false)} />
+          <aside className="relative flex w-72 max-w-[85vw] flex-col bg-sidebar text-sidebar-foreground shadow-xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
             <div className="flex items-center justify-between pr-3 border-b border-white/10">
               <Brand bordered={false} />
               <button

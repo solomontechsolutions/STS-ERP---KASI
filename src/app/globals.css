@@ -14,8 +14,8 @@
   --sts-charcoal: #2a2e33;
   --sts-cyan: #4fb6d9;
   --sts-teal: #1e7a8c;
-  --sts-cloud: #f5f7fa;
-  --sts-line: #e4e8ef;
+  --sts-cloud: #f5f5f7;
+  --sts-line: #e5e5ea;
   --sts-white: #ffffff;
 
   --status-success: #1e8a5f;
@@ -26,7 +26,7 @@
   --background: var(--sts-cloud);
   --surface: var(--sts-white);
   --foreground: var(--sts-charcoal);
-  --muted-foreground: #6b7280;
+  --muted-foreground: #6e6e73;
   --border: var(--sts-line);
   --primary: var(--sts-navy);
   --primary-foreground: var(--sts-white);
@@ -55,15 +55,27 @@
   --color-status-danger: var(--status-danger);
   --color-status-info: var(--status-info);
 
-  --font-sans: var(--font-inter);
-  --font-heading: var(--font-space-grotesk);
-  --font-mono: var(--font-jetbrains-mono);
+  /* Apple San Francisco on Apple devices, Inter elsewhere (see layout.tsx). */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", var(--font-inter), "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", var(--font-inter), "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Softer, Apple-like geometry for every rounded-* utility. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.005em;
 }
 
 h1,
@@ -72,12 +84,14 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-heading), var(--font-sans), sans-serif;
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
 }
 
+/* Figures line up in columns without switching to a code font. */
 .font-tabular {
-  font-family: var(--font-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 /*
@@ -195,4 +209,53 @@ h6 {
   .legal-doc {
     font-size: 12pt;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Premium surface treatment                                           */
+/* ------------------------------------------------------------------ */
+
+/* Every card-like surface (bordered, rounded, white) gets a soft,
+   layered shadow so panels read as objects, the way iOS grouped
+   sections do. Done here once instead of in each of ~40 components. */
+.bg-surface.border.rounded-lg,
+.bg-surface.border.rounded-xl {
+  box-shadow:
+    0 1px 1px rgba(15, 38, 71, 0.03),
+    0 2px 10px rgba(15, 38, 71, 0.04);
+}
+
+@keyframes kasi-sheet {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes kasi-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Taps on phones: no grey flash, crisp press feedback instead. */
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
 }

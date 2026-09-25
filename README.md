@@ -45,6 +45,32 @@ Next.js 16 (App Router, TypeScript) · PostgreSQL via Prisma 7 (`@prisma/adapter
 - `src/app/(app)/` — the authenticated shell. Most module pages are stub
   "not built yet" screens until their phase lands — see `PROJECT_NOTES.md`.
 
+## Web address: erp.solomontechsolutions.com
+
+The company website stays on cPanel at solomontechsolutions.com. KASI runs
+on Vercel under a subdomain of the same domains:
+
+| Address | What it does |
+|---|---|
+| `erp.solomontechsolutions.com` | KASI (the main address) |
+| `erp.solomontechsolutions.co.tz` | Redirects to the address above |
+
+1. **Vercel**, Project, Settings, Domains: add `erp.solomontechsolutions.com`,
+   then add `erp.solomontechsolutions.co.tz` and set it to redirect to the
+   first one. Vercel shows a CNAME target for each.
+2. **cPanel**, Domains, Zone Editor, `solomontechsolutions.com`, Manage,
+   Add Record: type `CNAME`, name `erp`, record = the target Vercel showed
+   (for example `cname.vercel-dns.com.`). Repeat under
+   `solomontechsolutions.co.tz`. Do not touch the existing `@`, `www` or
+   mail records: they keep the website and email working.
+3. Wait for Vercel to show both domains as valid (usually minutes, up to a
+   few hours), then set `KASI_CANONICAL_HOST=erp.solomontechsolutions.com`
+   in Vercel and redeploy. Vercel issues the HTTPS certificates itself.
+
+If the domain's DNS is not managed in cPanel (the Zone Editor has no
+records), add the same CNAME records wherever the nameservers point, for
+.co.tz usually the registrar's panel.
+
 ## Boardroom, revenue reports, notifications and meetings
 
 ### Revenue reports (`/finance/reports`)
@@ -98,6 +124,25 @@ For confidential board business configure 8x8 JaaS (`JAAS_*`) or a
 self-hosted Jitsi with token auth (`JITSI_*`). With neither, rooms are
 protected only by their random names and KASI shows a warning.
 
+### Face ID, fingerprint and app lock (`/settings/security`)
+
+Everyone can set up passkeys: sign in with Face ID, Touch ID, Android
+fingerprint or face unlock, Windows Hello or the device PIN, instead of the
+password. KASI stores only a public key (WebAuthn, via
+`@simplewebauthn/server`); biometrics never leave the device. The same check
+confirms founder agreement signatures, and powers an optional per-device
+app lock (lock immediately or after 1, 5, 15 or 60 minutes away). The page
+also shows and tests the device's permissions: notifications, camera and
+microphone for meetings, whether KASI is installed.
+
+Passkeys are tied to `KASI_CANONICAL_HOST`; set it before people register.
+
+### Install prompt
+
+Visitors on a phone or tablet browser see an "Install KASI" sheet, on the
+login page too: a one-tap install on Android, and the Share, Add to Home
+Screen steps on iPhone. "Not now" hides it for a week.
+
 ### Phone notifications (`/notifications`)
 
 In-app inbox plus Web Push. Generate VAPID keys once
@@ -112,6 +157,9 @@ screen, then enable. The page walks people through this.
 Shows the live app on the deployment at desktop size and at phone size side
 by side, both signed in as you. Navigate in either; with "Linked" on the
 other follows. Every update pushed to `master` appears once deployed.
+"Test on the phone" plays the iPhone and Android install prompts, the app
+lock screen and a test notification inside the phone frame, and "Every
+area" lists each page you can reach and ticks it off once opened.
 
 ### Scheduled jobs
 

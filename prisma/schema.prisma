@@ -71,6 +71,7 @@ model User {
   meetingsCreated     Meeting[]            @relation("MeetingCreator")
   meetingInvites      MeetingInvitee[]
   selcomSyncRuns      IntegrationSyncRun[]
+  passkeys            Passkey[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -445,4 +446,41 @@ model MeetingInvitee {
 
   @@unique([meetingId, userId])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Passkeys (WebAuthn): sign-in and confirmation with the device's own
+// security, i.e. Face ID, Touch ID, Android fingerprint or face unlock,
+// Windows Hello, or the device PIN. KASI stores only the public key; the
+// private key never leaves the phone (or the owner's iCloud/Google account
+// for synced passkeys).
+// ---------------------------------------------------------------------------
+
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique // base64url
+  publicKey    Bytes
+  counter      Int       @default(0)
+  transports   String[]
+  deviceType   String // singleDevice or multiDevice (synced)
+  backedUp     Boolean   @default(false)
+  name         String // e.g. "iPhone", editable by the owner
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// One-time WebAuthn challenges. Deleted when used; expire after 5 minutes.
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  challenge String
+  purpose   String // register, login, verify
+  userId    String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }

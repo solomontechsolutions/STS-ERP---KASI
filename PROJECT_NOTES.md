@@ -100,6 +100,22 @@ Built and working (verified with `npx tsc --noEmit`, `npx eslint .`, and
     Playwright run-through. Not verifiable from the build sandbox: live
     Jitsi video and real push delivery (outbound hosts blocked).
 
+- **Security, install prompt, Apple look (2026-09-25)**:
+  - Passkeys (`Passkey`, `WebAuthnChallenge`, `src/lib/passkeys.ts`,
+    second Auth.js Credentials provider `passkey`). Uses
+    `@simplewebauthn/server` **v9**, because next-auth 5 beta declares
+    `@simplewebauthn/*@^9` as optional peers and v13 makes `npm install`
+    fail with ERESOLVE on Vercel. The browser half is hand-written in
+    `src/lib/webauthn-client.ts` and mirrors @simplewebauthn/browser v9
+    (user.id as UTF-8). If next-auth drops or raises that peer, move both.
+  - App lock is a per-device client overlay (`AppLock`), unlocked by a
+    server-verified passkey or password. It guards an unattended signed-in
+    phone; it is not an access control on its own.
+  - `KASI_CANONICAL_HOST` redirects other hosts in `src/proxy.ts`; passkeys
+    are bound to it (or `WEBAUTHN_RP_ID`).
+  - Font is Apple's system font via `-apple-system` (SF cannot be licensed
+    as a web font), Inter as the fallback elsewhere.
+
 **Not yet built:** anything from Phase 4 onward (finance/accounting,
 banking reconciliation, payroll, assets, inventory, sales, purchasing,
 projects, approval engine), Phase 5 governance record-keeping (resolutions/

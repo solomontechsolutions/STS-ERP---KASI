@@ -20,6 +20,16 @@ export default async function SimulatorPage({ searchParams }: PageProps<"/simula
     .map((item) => ({ label: item.label, href: item.href }));
   const initialPath = typeof params.path === "string" ? params.path : "/";
 
+  // Every page this user can reach, plus the forms inside the Boardroom and
+  // Meetings, so a full test run covers them too.
+  const areas = NAV_GROUPS.flatMap((g) =>
+    g.items
+      .filter((item) => item.href !== "/simulator" && canSeeNavItem(item, grants, board))
+      .map((item) => ({ group: g.label, label: item.label, href: item.href, planned: Boolean(item.planned) })),
+  );
+  if (board) areas.push({ group: "Boardroom", label: "Table a decision", href: "/boardroom/decisions/new", planned: false });
+  areas.push({ group: "Collaborate", label: "Schedule a meeting", href: "/meetings/new", planned: false });
+
   return (
     <div className="space-y-4">
       <div>
@@ -30,7 +40,7 @@ export default async function SimulatorPage({ searchParams }: PageProps<"/simula
           device to use it; with Linked on, the other device follows.
         </p>
       </div>
-      <DeviceSimulator quickLinks={quickLinks} initialPath={initialPath} />
+      <DeviceSimulator quickLinks={quickLinks} areas={areas} initialPath={initialPath} />
     </div>
   );
 }

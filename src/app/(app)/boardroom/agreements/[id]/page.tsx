@@ -26,10 +26,11 @@ export default async function AgreementPage({
   });
   if (!template) notFound();
 
-  const [me, members, user] = await Promise.all([
+  const [me, members, user, passkeyCount] = await Promise.all([
     getBoardMember(session.user.id),
     listBoardMembers(),
     prisma.user.findUnique({ where: { id: session.user.id }, select: { name: true } }),
+    prisma.passkey.count({ where: { userId: session.user.id } }),
   ]);
   const mySignature = template.signatures.find((s) => s.userId === session.user.id);
   const integrityOk = hashAgreementBody(template.body) === template.contentHash;
@@ -81,7 +82,7 @@ export default async function AgreementPage({
       ) : template.isCurrent && me ? (
         <section className="rounded-lg border border-border bg-surface p-5 print:hidden">
           <h2 className="text-sm font-semibold mb-4">Sign this agreement</h2>
-          <SignAgreementForm templateId={template.id} expectedName={user?.name ?? ""} />
+          <SignAgreementForm templateId={template.id} expectedName={user?.name ?? ""} hasPasskey={passkeyCount > 0} />
         </section>
       ) : null}
 
