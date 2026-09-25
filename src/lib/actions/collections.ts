@@ -19,7 +19,7 @@ export async function syncSelcomNowAction(
     (await userHasPermission(session.user.id, "sales_subscriber", "edit"));
   if (!allowed) return { error: "You don't have permission to run a Selcom sync." };
 
-  const days = Math.min(90, Math.max(1, Number(formData.get("days") ?? 2)));
+  const days = Math.min(366, Math.max(1, Number(formData.get("days") ?? 2)));
   const to = new Date();
   const from = new Date(to.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
 
@@ -37,10 +37,10 @@ export async function syncSelcomNowAction(
       actorId: session.user.id,
       afterData: { provider: "selcom", fetched: run.fetched, upserted: run.upserted, days },
     });
-    revalidatePath("/finance/collections");
-    return { message: `Synced ${run.upserted} order${run.upserted === 1 ? "" : "s"} from the last ${days} day${days === 1 ? "" : "s"}.` };
+    revalidatePath("/finance/reports");
+    return { message: `Updated ${run.upserted} Selcom order${run.upserted === 1 ? "" : "s"} from the last ${days} day${days === 1 ? "" : "s"}.` };
   } catch (error) {
-    revalidatePath("/finance/collections");
+    revalidatePath("/finance/reports");
     return { error: error instanceof Error ? error.message : "Sync failed." };
   }
 }

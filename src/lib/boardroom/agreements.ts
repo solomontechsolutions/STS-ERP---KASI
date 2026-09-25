@@ -7,43 +7,78 @@ export function hashAgreementBody(body: string): string {
   return createHash("sha256").update(body, "utf8").digest("hex");
 }
 
+/** House style for agreement text: no em-dashes, no runs of spaces. */
+export function agreementStyleProblems(text: string): string[] {
+  const problems: string[] = [];
+  if (/[\u2014\u2015]/.test(text)) problems.push("Replace em-dashes with a comma, a colon or the word \"to\".");
+  if (/[^\S\n]{2,}/.test(text)) problems.push("Remove double spaces.");
+  return problems;
+}
+
+function fillPlaceholders(
+  text: string,
+  company: { legalName: string; brelaNumber: string; registeredOfficeAddress: string } | null,
+) {
+  return text
+    .replaceAll("{{company}}", (company?.legalName ?? "Solomon Tech Solutions Limited").toUpperCase())
+    .replaceAll("{{companyNumber}}", company?.brelaNumber ?? "")
+    .replaceAll("{{registeredOffice}}", company?.registeredOfficeAddress ?? "");
+}
+
 /**
- * Creates version 1 of any agreement that has never been published. Runs on
- * page load rather than in the seed so deployments that were seeded before
- * the Boardroom existed get the agreements without re-running setup.
- * Existing versions are never touched.
+ * Keeps the agreements in step with the standard wording in
+ * agreement-templates.ts. Runs on page load (not in the seed) so existing
+ * deployments pick it up without re-running setup.
+ *
+ * - An agreement never published is created as version 1.
+ * - A current version that KASI itself created (no publisher) and whose text
+ *   differs from today's standard wording is superseded by a new version.
+ * - A version published by a director or the Company Secretary is never
+ *   touched: their wording always wins.
  */
 export async function ensureAgreementTemplates() {
-  const existing = await prisma.agreementTemplate.findMany({
-    select: { code: true },
-    distinct: ["code"],
-  });
-  const have = new Set(existing.map((t) => t.code));
-  const missing = AGREEMENT_SEEDS.filter((s) => !have.has(s.code));
-  if (missing.length === 0) return;
+  const [current, company] = await Promise.all([
+    prisma.agreementTemplate.findMany({
+      where: { isCurrent: true },
+      select: { id: true, code: true, version: true, contentHash: true, publishedById: true, title: true },
+    }),
+    prisma.company.findFirst({
+      select: { legalName: true, brelaNumber: true, registeredOfficeAddress: true },
+    }),
+  ]);
 
-  const company = await prisma.company.findFirst({ select: { legalName: true } });
-  const companyName = company?.legalName ?? "Solomon Tech Solutions Limited";
+  for (const seed of AGREEMENT_SEEDS) {
+    const body = fillPlaceholders(seed.body, company);
+    const hash = hashAgreementBody(body);
+    const existing = current.find((t) => t.code === seed.code);
+    if (existing && (existing.publishedById || (existing.contentHash === hash && existing.title === seed.title))) {
+      continue;
+    }
 
-  for (const seed of missing) {
-    const body = seed.body.replaceAll("{{company}}", companyName);
+    const version = existing ? existing.version + 1 : 1;
     // Two first page loads can race here; the unique (code, version) key
     // makes the loser fail harmlessly, so that error is swallowed.
-    await prisma.agreementTemplate.upsert({
-      where: { code_version: { code: seed.code, version: 1 } },
-      update: {},
-      create: {
-        code: seed.code,
-        version: 1,
-        title: seed.title,
-        summary: seed.summary,
-        body,
-        contentHash: hashAgreementBody(body),
-        isCurrent: true,
-      },
-    }).catch((error: { code?: string }) => {
-      if (error.code !== "P2002") throw error;
-    });
+    await prisma
+      .$transaction([
+        prisma.agreementTemplate.updateMany({
+          where: { code: seed.code, isCurrent: true, publishedById: null },
+          data: { isCurrent: false },
+        }),
+        prisma.agreementTemplate.create({
+          data: {
+            code: seed.code,
+            version,
+            title: seed.title,
+            summary: seed.summary,
+            body,
+            contentHash: hash,
+            isCurrent: true,
+          },
+        }),
+      ])
+      .catch((error: { code?: string }) => {
+        if (error.code !== "P2002") throw error;
+      });
   }
 }
 

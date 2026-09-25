@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 /**
  * Re-renders the current Server Component page every `seconds` while the tab
- * is visible, so live figures (Selcom collections, vote tallies) update
+ * is visible, so live figures (revenue reports, vote tallies) update
  * without a manual reload. Pauses in background tabs to save the phone's
  * battery and data, and refreshes immediately on return.
  */

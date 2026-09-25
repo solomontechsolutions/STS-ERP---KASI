@@ -1,9 +1,14 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Selcom API gateway client and collection ledger.
+ * Read-only Selcom API client behind the revenue reports.
+ *
+ * KASI never creates, changes or cancels a payment. BillNasi (the billing
+ * system) creates every Selcom order and receives Selcom's callbacks; KASI
+ * only reads the same account's order list with the same API credentials
+ * and stores a copy for reporting.
  *
  * Signing follows Selcom's own reference client
  * (github.com/selcompaytechltd/selcom-apigw-client-php):
@@ -14,11 +19,6 @@ import { prisma } from "@/lib/prisma";
  *   Digest:        base64(HMAC-SHA256(apiSecret,
  *                    "timestamp=<Timestamp>&f1=v1&f2=v2..."))
  *   Digest-Method: HS256
- *
- * Selcom signs its webhook callbacks the same way, so the same function
- * verifies an incoming callback. That also means the billing system can
- * forward the raw Selcom callback (body plus those headers) to KASI and the
- * signature still verifies, because both systems share the one API secret.
  */
 
 export type SelcomConfig = {
@@ -70,49 +70,6 @@ export function signRequest(config: SelcomConfig, params: Record<string, string>
     Timestamp: timestamp,
     "Signed-Fields": fields.map(([k]) => k).join(","),
   };
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  return ab.length === bb.length && timingSafeEqual(ab, bb);
-}
-
-/**
- * Verifies a Selcom-signed callback. Rejects a timestamp more than
- * `maxAgeHours` old so a captured callback cannot be replayed indefinitely
- * (replays are harmless anyway: ingestion is an idempotent upsert).
- */
-export function verifySelcomCallback(
-  headers: Headers,
-  body: Record<string, unknown>,
-  secret: string,
-  maxAgeHours = 48,
-): boolean {
-  const digest = headers.get("digest");
-  const timestamp = headers.get("timestamp");
-  const signedFields = headers.get("signed-fields");
-  if (!digest || !timestamp || !signedFields) return false;
-
-  const sentAt = Date.parse(timestamp);
-  if (Number.isNaN(sentAt)) return false;
-  if (Math.abs(Date.now() - sentAt) > maxAgeHours * 60 * 60 * 1000) return false;
-
-  const fields = signedFields
-    .split(",")
-    .map((f) => f.trim())
-    .filter(Boolean)
-    .map((f) => [f, body[f]] as [string, unknown]);
-  return safeEqual(computeDigest(secret, timestamp, fields), digest);
-}
-
-/** Alternative to a Selcom signature for relays that re-shape the payload. */
-export function verifyRelayToken(headers: Headers): boolean {
-  const expected = process.env.SELCOM_RELAY_TOKEN;
-  if (!expected || expected.length < 16) return false;
-  const bearer = headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const provided = headers.get("x-kasi-relay-token") ?? bearer;
-  return Boolean(provided && safeEqual(provided, expected));
 }
 
 async function selcomGet(config: SelcomConfig, path: string, params: Record<string, string>) {
@@ -170,13 +127,12 @@ export function normalizeStatus(value: unknown): string {
 
 /**
  * Inserts or updates one order. Fields a later payload leaves out keep their
- * earlier value (a callback often omits the amount, a list response the
- * transid), and `paidAt` is stamped the first time the order is COMPLETED
+ * earlier value, and `paidAt` is set the first time the order is COMPLETED
  * and never moved after that.
  */
 export async function upsertCollection(
   payload: SelcomOrderPayload,
-  source: "webhook" | "sync",
+  source: "sync",
 ) {
   const orderId = str(payload.order_id ?? payload.orderId);
   if (!orderId) throw new Error("Selcom payload has no order_id");
@@ -197,17 +153,12 @@ export async function upsertCollection(
     Object.entries(fields).filter(([, v]) => v !== undefined),
   );
 
-  // A webhook arrives as the payment happens, so "now" is the payment time.
-  // A sync can import orders from weeks ago; stamping those "now" would
-  // count last month's money in today's total, so use the order's own date.
+  // Selcom's list gives the order's creation time, which for a mobile money
+  // checkout is minutes from payment. Using it (not the sync time) keeps an
+  // import of last month's orders out of today's figures.
   const orderDate = fields.orderCreatedAt ?? existing?.orderCreatedAt ?? undefined;
   const paidAt =
-    existing?.paidAt ??
-    (status === "COMPLETED"
-      ? source === "sync" && orderDate
-        ? orderDate
-        : new Date()
-      : null);
+    existing?.paidAt ?? (status === "COMPLETED" ? orderDate ?? new Date() : null);
 
   const row = existing
     ? await prisma.selcomCollection.update({
@@ -231,19 +182,7 @@ export async function upsertCollection(
         },
       });
 
-  const newlyCompleted = status === "COMPLETED" && existing?.paymentStatus !== "COMPLETED";
-  return { row, newlyCompleted };
-}
-
-/** Fills in fields a callback left out (usually amount) from order-status. */
-export async function enrichFromOrderStatus(orderId: string) {
-  const config = getSelcomConfig();
-  if (!config) return;
-  const res = await selcomGet(config, "checkout/order-status", { order_id: orderId });
-  const data = Array.isArray(res.data) ? res.data[0] : res.data;
-  if (data && typeof data === "object") {
-    await upsertCollection(data as SelcomOrderPayload, "sync");
-  }
+  return row;
 }
 
 function ymd(date: Date): string {
@@ -251,10 +190,14 @@ function ymd(date: Date): string {
   return new Date(date.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Days per list-orders request, so a long import is several small calls. */
+const CHUNK_DAYS = 7;
+
 /**
- * Pulls every checkout order in a date range from Selcom and upserts it.
- * This is the safety net behind the webhook: any callback that was missed,
- * or orders made before KASI was connected, arrive through here.
+ * Copies every checkout order in a date range from Selcom into KASI. Long
+ * ranges are fetched a week at a time. Re-running a range is safe: orders
+ * are matched on Selcom's order_id and updated, never duplicated.
  */
 export async function syncSelcomOrders(opts: {
   from: Date;
@@ -277,23 +220,27 @@ export async function syncSelcomOrders(opts: {
   });
 
   try {
-    const params: Record<string, string> = { fromdate: ymd(opts.from), todate: ymd(opts.to) };
-    const res = await selcomGet(config, "checkout/list-orders", params);
-    if (res.resultcode && res.resultcode !== "000") {
-      throw new Error(`Selcom list-orders: ${res.result ?? ""} ${res.message ?? res.resultcode}`.trim());
-    }
-    const orders = Array.isArray(res.data) ? (res.data as SelcomOrderPayload[]) : [];
-
+    let fetched = 0;
     let upserted = 0;
-    for (const order of orders) {
-      if (!str(order.order_id)) continue;
-      await upsertCollection(order, "sync");
-      upserted++;
+    for (let start = opts.from.getTime(); start <= opts.to.getTime(); start += CHUNK_DAYS * DAY_MS) {
+      const end = Math.min(start + (CHUNK_DAYS - 1) * DAY_MS, opts.to.getTime());
+      const params = { fromdate: ymd(new Date(start)), todate: ymd(new Date(end)) };
+      const res = await selcomGet(config, "checkout/list-orders", params);
+      if (res.resultcode && res.resultcode !== "000") {
+        throw new Error(`Selcom list-orders: ${res.result ?? ""} ${res.message ?? res.resultcode}`.trim());
+      }
+      const orders = Array.isArray(res.data) ? (res.data as SelcomOrderPayload[]) : [];
+      fetched += orders.length;
+      for (const order of orders) {
+        if (!str(order.order_id)) continue;
+        await upsertCollection(order, "sync");
+        upserted++;
+      }
     }
 
     return await prisma.integrationSyncRun.update({
       where: { id: run.id },
-      data: { status: "success", fetched: orders.length, upserted, finishedAt: new Date() },
+      data: { status: "success", fetched, upserted, finishedAt: new Date() },
     });
   } catch (error) {
     await prisma.integrationSyncRun.update({
@@ -326,6 +273,95 @@ export async function collectedSince(since: Date) {
     _count: true,
   });
   return { amount: Number(agg._sum.amount ?? 0), count: agg._count };
+}
+
+/** EAT calendar date (yyyy-mm-dd) of an instant. */
+export function eatDateKey(date: Date): string {
+  return new Date(date.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** Midnight EAT at the start of a yyyy-mm-dd date. */
+export function eatDayStart(key: string): Date {
+  return new Date(`${key}T00:00:00+03:00`);
+}
+
+export type RevenueReport = {
+  from: Date;
+  toExclusive: Date;
+  total: number;
+  count: number;
+  average: number;
+  unsuccessful: number;
+  pending: number;
+  days: { date: string; amount: number; count: number }[];
+  channels: { channel: string; amount: number; count: number; share: number }[];
+};
+
+/**
+ * Successful Selcom payments between two instants, with daily and
+ * per-channel breakdowns. Days with no payments are included as zero so
+ * the report and its chart show gaps honestly.
+ */
+export async function revenueReport(from: Date, toExclusive: Date): Promise<RevenueReport> {
+  // Aggregated in SQL: a year of Wi-Fi voucher payments is far too many rows
+  // to load. "paidAt" is stored as UTC; convert before cutting into days.
+  const [dailyRows, channelRows, unsuccessful, pending] = await Promise.all([
+    prisma.$queryRaw<{ day: string; amount: string | null; count: bigint }[]>`
+      SELECT to_char(("paidAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Dar_es_Salaam', 'YYYY-MM-DD') AS day,
+             SUM("amount")::text AS amount,
+             COUNT(*) AS count
+      FROM "SelcomCollection"
+      WHERE "paymentStatus" = 'COMPLETED' AND "paidAt" >= ${from} AND "paidAt" < ${toExclusive}
+      GROUP BY 1`,
+    prisma.selcomCollection.groupBy({
+      by: ["channel"],
+      where: { paymentStatus: "COMPLETED", paidAt: { gte: from, lt: toExclusive } },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.selcomCollection.count({
+      where: {
+        paymentStatus: { in: ["CANCELLED", "USERCANCELED", "REJECTED", "FAILED"] },
+        orderCreatedAt: { gte: from, lt: toExclusive },
+      },
+    }),
+    prisma.selcomCollection.count({
+      where: {
+        paymentStatus: { in: ["PENDING", "INPROGRESS"] },
+        orderCreatedAt: { gte: from, lt: toExclusive },
+      },
+    }),
+  ]);
+
+  const byDay = new Map<string, { amount: number; count: number }>();
+  for (let t = from.getTime(); t < toExclusive.getTime(); t += DAY_MS) {
+    byDay.set(eatDateKey(new Date(t)), { amount: 0, count: 0 });
+  }
+  for (const r of dailyRows) {
+    byDay.set(r.day, { amount: Number(r.amount ?? 0), count: Number(r.count) });
+  }
+  const days = [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, ...v }));
+  const total = days.reduce((n, d) => n + d.amount, 0);
+  const count = days.reduce((n, d) => n + d.count, 0);
+
+  return {
+    from,
+    toExclusive,
+    total,
+    count,
+    average: count ? total / count : 0,
+    unsuccessful,
+    pending,
+    days,
+    channels: channelRows
+      .map((c) => {
+        const amount = Number(c._sum.amount ?? 0);
+        return { channel: c.channel ?? "Unknown", amount, count: c._count, share: total ? amount / total : 0 };
+      })
+      .sort((a, b) => b.amount - a.amount),
+  };
 }
 
 export function formatTzs(amount: number): string {

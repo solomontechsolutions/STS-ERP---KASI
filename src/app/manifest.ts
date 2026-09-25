@@ -20,7 +20,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Decisions", url: "/boardroom/decisions" },
       { name: "Meetings", url: "/meetings" },
-      { name: "Collections", url: "/finance/collections" },
+      { name: "Revenue report", url: "/finance/reports" },
     ],
   };
 }

@@ -79,17 +79,17 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Meetings", href: "/meetings", module: "everyone" },
       { label: "Notifications", href: "/notifications", module: "everyone" },
+      { label: "Web & phone preview", href: "/simulator", module: "everyone" },
     ],
   },
   {
     label: "Finance",
     icon: Landmark,
     items: [
-      { label: "Collections (Selcom)", href: "/finance/collections", module: "banking" },
       { label: "Accounting", href: "/finance/accounting", module: "finance" },
       { label: "Banking & reconciliation", href: "/finance/banking", module: "banking" },
       { label: "Payroll", href: "/finance/payroll", module: "payroll" },
-      { label: "Reports", href: "/finance/reports", module: "finance" },
+      { label: "Revenue reports", href: "/finance/reports", module: "banking" },
     ],
   },
   {

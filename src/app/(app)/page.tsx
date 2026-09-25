@@ -82,8 +82,8 @@ export default async function DashboardPage() {
   );
   const actionCards = [
     today && {
-      href: "/finance/collections",
-      label: "Collected today (Selcom)",
+      href: "/finance/reports",
+      label: "Revenue today (Selcom)",
       value: formatTzs(today.amount),
       sub: `${today.count} payments · ${formatTzs(month?.amount ?? 0)} in the last 30 days`,
     },
@@ -113,7 +113,7 @@ export default async function DashboardPage() {
         Welcome back, {firstName}
       </h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Live collections, board business and meetings are below. Other
+        Revenue, board business and meetings are below. Other
         business modules land in later phases.
       </p>
 

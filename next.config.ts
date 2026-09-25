@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
           // lets the meeting room's iframe receive them through its `allow`
           // attribute whichever Jitsi host is configured.
           { key: "Permissions-Policy", value: "geolocation=(), payment=()" },
+          // Only KASI itself may frame KASI (the web and phone preview does);
+          // blocks clickjacking from any other site.
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
         ],
       },
       {

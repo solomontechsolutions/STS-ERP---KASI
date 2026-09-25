@@ -66,20 +66,29 @@ Built and working (verified with `npx tsc --noEmit`, `npx eslint .`, and
   changing `src/lib/rbac.ts` and re-seeding — no UI for authoring custom
   roles yet.
 
-- **Boardroom, collections, notifications, meetings (2026-09-25)**, built
+- **Boardroom, revenue reports, notifications, meetings (2026-09-25)**, built
   at the user's request ahead of the phase plan. See README for setup.
-  - Selcom collections ledger (`SelcomCollection`, `/finance/collections`),
-    webhook at `/api/integrations/selcom/webhook` that verifies Selcom's own
-    HMAC signature (scheme copied from Selcom's reference PHP client), plus a
-    `list-orders` sync. This is a cash-receipts view, not yet posted to a
-    ledger: when the accounting module lands, journal each COMPLETED row.
+  - Revenue reports (`/finance/reports`) read Selcom's `list-orders` with
+    the same API credentials BillNasi uses (signing scheme copied from
+    Selcom's reference PHP client) into `SelcomCollection`. Read-only by the
+    owner's instruction: KASI reports, it does not collect. The earlier
+    webhook was removed because BillNasi, a third-party SaaS, owns Selcom's
+    callbacks and cannot forward them. The BillNasi account token appears
+    to be base64 of "kasiwifi:<id>:<secret>"; its use for a reporting API is
+    unconfirmed; ask BillNasi support before building on it. When the
+    accounting module lands, journal each COMPLETED row.
+  - `/simulator` frames the live app at desktop and phone sizes (same
+    origin, so the session carries). `X-Frame-Options: SAMEORIGIN` keeps
+    other sites from framing KASI.
   - Boardroom access is derived from Director/Shareholder identity records
     (`src/lib/boardroom/members.ts`), not RBAC, so no re-seed is needed.
     Mjanaheri (5% shareholder, not a BRELA director) is in the Boardroom and
     votes on shareholder resolutions but not board resolutions.
   - Agreement templates are created lazily on first page load
-    (`ensureAgreementTemplates`) for the same reason. Wording is a draft
-    pending advocate review.
+    (`ensureAgreementTemplates`) for the same reason; a KASI-created current
+    version whose text differs from the standard wording is superseded
+    automatically, a version a director published never is. Rendered by
+    `AgreementDocument` in Times New Roman 12 pt, justified.
   - Decision tallies count against the whole electorate snapshot taken when
     the decision opens (written-resolution rule). If the board wants
     "majority of votes cast at a meeting" semantics, that is a new threshold

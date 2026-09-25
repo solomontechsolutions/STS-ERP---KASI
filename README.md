@@ -45,28 +45,28 @@ Next.js 16 (App Router, TypeScript) · PostgreSQL via Prisma 7 (`@prisma/adapter
 - `src/app/(app)/` — the authenticated shell. Most module pages are stub
   "not built yet" screens until their phase lands — see `PROJECT_NOTES.md`.
 
-## Boardroom, collections, notifications and meetings
+## Boardroom, revenue reports, notifications and meetings
 
-### Selcom collections (`/finance/collections`)
+### Revenue reports (`/finance/reports`)
 
-Live view of every payment collected through Selcom: today, 7 days, month,
-per-channel totals, a 14-day chart and the latest orders. The page refreshes
-itself every 15 seconds. Visible to holders of `banking:view` or
+A read-only report of payments customers made through Selcom: revenue for
+any period (today, 7 or 30 days, this or last month, this year, or custom
+dates), average payment, best day, failed and pending payments, a chart,
+a daily or monthly breakdown, and a split by payment channel. Export to CSV
+or print to PDF. Visible to holders of `banking:view` or
 `sales_subscriber:view`.
 
-1. Set `SELCOM_API_KEY` and `SELCOM_API_SECRET` (the billing system's own).
-2. Real time: Selcom sends each payment callback to the `webhook` URL the
-   billing system gives when it creates the order. Have the billing system
-   **forward each callback unchanged** (same JSON body and the `Digest`,
-   `Timestamp` and `Signed-Fields` headers) to
-   `https://<kasi-domain>/api/integrations/selcom/webhook`. KASI verifies
-   Selcom's signature with the shared secret. If the billing system reshapes
-   the payload instead, send it with header `X-KASI-Relay-Token:
-   <SELCOM_RELAY_TOKEN>`.
-3. Safety net: the scheduled tick (below) pulls Selcom's `list-orders` for
-   the last day, so a missed callback shows up within minutes. "Sync with
-   Selcom now" on the page imports up to 90 days, which is how past
-   collections are loaded the first time.
+How it works: BillNasi creates every Selcom payment and receives Selcom's
+confirmations, exactly as today. KASI uses the same Selcom API key and
+secret to READ the account's order list (Selcom `checkout/list-orders`)
+and keeps a copy for reporting. Nothing changes in BillNasi and no money
+moves through KASI.
+
+1. Set `SELCOM_API_KEY` and `SELCOM_API_SECRET` (the values in BillNasi,
+   Settings, Payment Gateway).
+2. Open Finance, Revenue reports and use "Refresh from Selcom" with
+   "12 months" once to load history.
+3. The scheduled tick (below) reads new orders every 10 minutes after that.
 
 ### Boardroom (`/boardroom`)
 
@@ -74,13 +74,14 @@ Open to anyone with a Director or Shareholder record (all eight founders),
 not controlled by roles.
 
 - **Founder agreements**: loyalty and fiduciary undertaking, NDA,
-  non-compete and non-solicitation, board secrecy, conflict of interest.
-  Signing needs the typed full name, a drawn signature and the account
-  password. KASI stores the signature image, IP, device and a SHA-256
-  fingerprint of the exact text signed. Edits publish a new version and
-  everyone signs again. **The version 1 wording is a draft: have it reviewed
-  by the company's advocate and publish the approved text before relying on
-  it.**
+  non-compete and non-solicitation, board secrecy, conflict of interest,
+  laid out as formal documents (Times New Roman 12 pt, justified, numbered
+  clauses, execution block) that print to A4 PDF. Signing needs the typed
+  full name, a drawn signature and the account password. KASI stores the
+  signature image, IP, device and a SHA-256 fingerprint of the exact text
+  signed. Edits publish a new version and everyone signs again; published
+  wording is checked for em-dashes and double spaces. Have the standard
+  wording reviewed by the company's advocate before relying on it.
 - **Decisions and votes**: board resolutions (one vote per director) and
   shareholder resolutions (weighted by shareholding, so the 65% holder
   carries 65 of 100). Thresholds: simple majority, 75% special, unanimous.
@@ -106,15 +107,21 @@ each device. Android: works in Chrome directly. iPhone/iPad (iOS 16.4+):
 open KASI in Safari, Share, Add to Home Screen, open it from the home
 screen, then enable. The page walks people through this.
 
+### Web and phone preview (`/simulator`)
+
+Shows the live app on the deployment at desktop size and at phone size side
+by side, both signed in as you. Navigate in either; with "Linked" on the
+other follows. Every update pushed to `master` appears once deployed.
+
 ### Scheduled jobs
 
-`/api/cron/tick` (Selcom sync, closing decisions past deadline, meeting
+`/api/cron/tick` (reading new Selcom orders, closing decisions past deadline, meeting
 reminders 15 minutes ahead) should run every 5 to 15 minutes with
 `Authorization: Bearer <CRON_SECRET>`. Vercel Hobby only allows daily cron,
 so `.github/workflows/kasi-tick.yml` runs it every 10 minutes from GitHub:
 add repository secrets `KASI_URL` and `CRON_SECRET`. Pages also close
 expired decisions when viewed, so results are right even without a
-scheduler; only reminders and Selcom back-fill depend on it.
+scheduler; only reminders and automatic Selcom reads depend on it.
 
 ### Icons
 

@@ -9,7 +9,7 @@ import { notifyUsers } from "@/lib/notifications";
  * Background housekeeping, meant to be called every 5 to 15 minutes by a
  * scheduler with `Authorization: Bearer <CRON_SECRET>`:
  *
- * - pulls the last two days of Selcom orders (catches missed callbacks),
+ * - reads the last day of Selcom orders into the revenue report,
  * - closes decisions whose voting deadline has passed and announces results,
  * - sends a reminder push 15 minutes before each meeting.
  *

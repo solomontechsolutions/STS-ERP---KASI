@@ -9,6 +9,7 @@ import { fmtDateTime } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { SignAgreementForm } from "@/components/boardroom/SignAgreementForm";
 import { PrintButton } from "@/components/ui/PrintButton";
+import { AgreementDocument } from "@/components/boardroom/AgreementDocument";
 
 export default async function AgreementPage({
   params,
@@ -37,7 +38,7 @@ export default async function AgreementPage({
     : await prisma.agreementTemplate.findFirst({ where: { code: template.code, isCurrent: true }, select: { id: true, version: true } });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div className="print:hidden">
         <Link href="/boardroom/agreements" className="text-sm text-primary hover:underline">
           Founder agreements
@@ -58,38 +59,19 @@ export default async function AgreementPage({
         </p>
       )}
 
-      <article className="rounded-lg border border-border bg-surface p-5 md:p-8 print:border-0 print:p-0">
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-          <div>
-            <h1 className="text-xl font-heading font-bold">{template.title}</h1>
-            <p className="text-xs text-muted-foreground mt-1">
-              Version {template.version} · Published {fmtDateTime(template.publishedAt)} EAT
-            </p>
-          </div>
-          <div className="flex gap-2 print:hidden">
-            {integrityOk ? (
-              <Badge tone="success"><ShieldCheck className="h-3.5 w-3.5" /> Text verified</Badge>
-            ) : (
-              <Badge tone="danger">Integrity check failed</Badge>
-            )}
-          </div>
-        </div>
-        <div className="whitespace-pre-wrap text-sm leading-relaxed text-justify">{template.body}</div>
-
-        {mySignature && (
-          <div className="mt-8 border-t border-border pt-5">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Signed by</p>
-            {/* eslint-disable-next-line @next/next/no-img-element -- data URL, nothing to optimise */}
-            <img src={mySignature.signatureImage} alt={`Signature of ${mySignature.signedName}`} className="h-20 w-auto" />
-            <p className="text-sm font-medium">{mySignature.signedName}</p>
-            <p className="text-xs text-muted-foreground">
-              {fmtDateTime(mySignature.signedAt)} EAT · IP {mySignature.ipAddress ?? "unknown"}
-            </p>
-            <p className="text-[11px] text-muted-foreground break-all mt-1 font-tabular">
-              Text fingerprint (SHA-256) {mySignature.contentHash}
-            </p>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <p className="text-xs text-muted-foreground">
+          Version {template.version}, published {fmtDateTime(template.publishedAt)} EAT
+        </p>
+        {integrityOk ? (
+          <Badge tone="success"><ShieldCheck className="h-3.5 w-3.5" /> Text verified</Badge>
+        ) : (
+          <Badge tone="danger">Integrity check failed</Badge>
         )}
+      </div>
+
+      <article className="rounded-lg border border-border bg-white px-5 py-8 md:px-14 md:py-12 shadow-sm print:border-0 print:p-0 print:shadow-none">
+        <AgreementDocument body={template.body} version={template.version} signature={mySignature ?? null} />
       </article>
 
       {mySignature ? (

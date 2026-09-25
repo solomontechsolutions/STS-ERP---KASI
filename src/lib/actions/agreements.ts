@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { getRequestMeta } from "@/lib/request-meta";
 import { notifyUsers } from "@/lib/notifications";
-import { hashAgreementBody } from "@/lib/boardroom/agreements";
+import { agreementStyleProblems, hashAgreementBody } from "@/lib/boardroom/agreements";
 import {
   canAdministerBoardroom,
   getBoardMember,
@@ -132,7 +132,9 @@ export async function publishAgreementVersionAction(
   const parsed = publishSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const input = parsed.data;
-  const body = input.body.replace(/\r\n/g, "\n");
+  const body = input.body.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "");
+  const problems = agreementStyleProblems(`${input.title}\n${input.summary}\n${body}`);
+  if (problems.length > 0) return { error: problems.join(" ") };
 
   const current = await prisma.agreementTemplate.findFirst({
     where: { code: input.code, isCurrent: true },

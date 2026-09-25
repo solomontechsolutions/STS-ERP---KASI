@@ -79,3 +79,120 @@ h6 {
   font-family: var(--font-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
+
+/*
+ * Formal documents (founder agreements): Times New Roman, 12pt body, 11pt
+ * notes, fully justified, numbered clauses with hanging indents. Sized in
+ * points so screen, print and PDF all match.
+ */
+/* Tinos is metric-compatible with Times New Roman, for Android and Linux,
+   which do not ship it. Windows, macOS and iOS use Times New Roman itself. */
+.legal-doc {
+  font-family: "Times New Roman", Times, var(--font-tinos), "Liberation Serif", serif;
+  font-size: 12pt;
+  line-height: 1.5;
+  color: #000;
+  text-align: justify;
+  hyphens: auto;
+}
+.legal-doc h1,
+.legal-doc h2,
+.legal-doc h3 {
+  font-family: "Times New Roman", Times, var(--font-tinos), "Liberation Serif", serif;
+  font-size: 12pt;
+}
+.legal-title {
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0 0 18pt;
+}
+.legal-heading {
+  font-weight: 700;
+  margin: 14pt 0 6pt;
+}
+.legal-clause {
+  display: grid;
+  grid-template-columns: 3em 1fr;
+  font-weight: 700;
+  margin: 14pt 0 6pt;
+  break-after: avoid;
+}
+.legal-row {
+  display: grid;
+  grid-template-columns: 3em 1fr;
+  margin: 0 0 6pt;
+}
+.legal-item {
+  margin-left: 3em;
+}
+.legal-num {
+  text-align: left;
+}
+.legal-para {
+  margin: 0 0 6pt;
+}
+.legal-execution {
+  margin-top: 24pt;
+  break-before: avoid;
+}
+.legal-sign {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18pt;
+  margin: 12pt 0;
+  break-inside: avoid;
+}
+.legal-label {
+  font-size: 11pt;
+  margin: 0;
+}
+.legal-line {
+  border-bottom: 1px solid #000;
+  min-height: 1.6em;
+  margin: 0 0 8pt;
+}
+.legal-sign-box {
+  border-bottom: 1px solid #000;
+  height: 72pt;
+  display: flex;
+  align-items: flex-end;
+}
+.legal-sign-box img {
+  max-height: 68pt;
+  width: auto;
+}
+.legal-note {
+  font-size: 11pt;
+  text-align: justify;
+  margin: 12pt 0 0;
+}
+.legal-hash {
+  margin-top: 2pt;
+  word-break: break-all;
+}
+@media (max-width: 480px) {
+  .legal-doc {
+    font-size: 11pt;
+  }
+  .legal-clause,
+  .legal-row {
+    grid-template-columns: 2.4em 1fr;
+  }
+  .legal-item {
+    margin-left: 1.2em;
+  }
+  .legal-sign {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 25mm 25mm 25mm 25mm;
+  }
+  .legal-doc {
+    font-size: 12pt;
+  }
+}
