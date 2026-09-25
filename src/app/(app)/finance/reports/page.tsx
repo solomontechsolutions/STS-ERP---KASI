@@ -19,7 +19,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div className="rounded-lg border border-border bg-surface p-4 min-w-0">
       <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg md:text-xl font-semibold font-tabular truncate">{value}</p>
+      <p className="mt-1 text-base sm:text-lg md:text-xl font-semibold font-tabular break-words">{value}</p>
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
