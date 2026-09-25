@@ -16,7 +16,7 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model Company {
-  id                      String   @id @default(cuid())
+  id                      String    @id @default(cuid())
   legalName               String
   tradingName             String?
   brelaNumber             String
@@ -27,12 +27,12 @@ model Company {
   registeredOfficeAddress String
   poBox                   String?
   accountingReferenceDate String? // e.g. "28 February"
-  shareCapitalAmount      Decimal  @db.Decimal(14, 2)
+  shareCapitalAmount      Decimal   @db.Decimal(14, 2)
   totalShares             Int
-  parValuePerShare        Decimal  @db.Decimal(10, 2)
+  parValuePerShare        Decimal   @db.Decimal(10, 2)
   businessActivities      Json? // array of {code, description}
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
 
 // ---------------------------------------------------------------------------
@@ -45,12 +45,12 @@ model Company {
 // ---------------------------------------------------------------------------
 
 model User {
-  id                String     @id @default(cuid())
-  email             String     @unique
+  id                String    @id @default(cuid())
+  email             String    @unique
   name              String
   passwordHash      String
-  mustResetPassword Boolean    @default(true)
-  isActive          Boolean    @default(true)
+  mustResetPassword Boolean   @default(true)
+  isActive          Boolean   @default(true)
   lastLoginAt       DateTime?
 
   employee    Employee?
@@ -61,6 +61,17 @@ model User {
   auditLogEntries   AuditLog[] @relation("ActorAuditLogs")
   documentsUploaded Document[] @relation("DocumentUploader")
 
+  notifications       Notification[]
+  pushSubscriptions   PushSubscription[]
+  agreementSignatures AgreementSignature[]
+  agreementsPublished AgreementTemplate[]  @relation("AgreementPublisher")
+  decisionsProposed   Decision[]           @relation("DecisionProposer")
+  decisionVotes       DecisionVote[]
+  decisionComments    DecisionComment[]
+  meetingsCreated     Meeting[]            @relation("MeetingCreator")
+  meetingInvites      MeetingInvitee[]
+  selcomSyncRuns      IntegrationSyncRun[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -69,11 +80,11 @@ model User {
 // brief) — e.g. "director", "company_secretary", "finance", "hr",
 // "management_admin", "employee". Users can hold multiple roles at once.
 model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique // machine key, e.g. "finance"
+  id          String  @id @default(cuid())
+  name        String  @unique // machine key, e.g. "finance"
   label       String // display name, e.g. "Finance"
   description String?
-  isSystem    Boolean  @default(false) // seeded baseline role vs custom
+  isSystem    Boolean @default(false) // seeded baseline role vs custom
 
   permissions Permission[]
   users       UserRole[]
@@ -114,19 +125,19 @@ model UserRole {
 // ---------------------------------------------------------------------------
 
 model Employee {
-  id             String    @id @default(cuid())
-  userId         String?   @unique
-  user           User?     @relation(fields: [userId], references: [id])
-  employeeNumber String    @unique
-  fullName       String
-  jobTitle       String
-  department     String
-  site           String? // e.g. "Mwanza / SAUT" for field staff
-  employmentStatus String  @default("active") // active, on_leave, terminated
-  dateJoined     DateTime? // not confirmed in source records for the initial seed — see PROJECT_NOTES.md
-  reportsTo      String?
-  grossSalary    Decimal?  @db.Decimal(14, 2)
-  leaveEntitlementDays Int  @default(28) // ELRA default
+  id                   String    @id @default(cuid())
+  userId               String?   @unique
+  user                 User?     @relation(fields: [userId], references: [id])
+  employeeNumber       String    @unique
+  fullName             String
+  jobTitle             String
+  department           String
+  site                 String? // e.g. "Mwanza / SAUT" for field staff
+  employmentStatus     String    @default("active") // active, on_leave, terminated
+  dateJoined           DateTime? // not confirmed in source records for the initial seed — see PROJECT_NOTES.md
+  reportsTo            String?
+  grossSalary          Decimal?  @db.Decimal(14, 2)
+  leaveEntitlementDays Int       @default(28) // ELRA default
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -178,7 +189,7 @@ model ShareAllocation {
 // ---------------------------------------------------------------------------
 
 model Document {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   entityType   String // e.g. "employee", "asset", "bank_transaction"
   entityId     String
   category     String // e.g. "contract", "invoice", "governance", "receipt"
@@ -186,11 +197,11 @@ model Document {
   storageKey   String // object storage key/URL, never base64 in DB
   mimeType     String
   sizeBytes    Int
-  version      Int      @default(1)
+  version      Int     @default(1)
   tags         Json?
   description  String?
   uploadedById String
-  uploadedBy   User     @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  uploadedBy   User    @relation("DocumentUploader", fields: [uploadedById], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -199,14 +210,14 @@ model Document {
 
 // Append-only. No application code path may update or delete rows here.
 model AuditLog {
-  id         String   @id @default(cuid())
+  id         String  @id @default(cuid())
   entityType String
   entityId   String
   action     String // create, update, delete, approve, reject, finalize, login, ...
   beforeData Json?
   afterData  Json?
   actorId    String?
-  actor      User?    @relation("ActorAuditLogs", fields: [actorId], references: [id])
+  actor      User?   @relation("ActorAuditLogs", fields: [actorId], references: [id])
   ipAddress  String?
   userAgent  String?
 
@@ -214,4 +225,224 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([actorId])
+}
+
+// ---------------------------------------------------------------------------
+// Selcom collections (real-time view of payments collected through the
+// Selcom gateway). One row per Selcom checkout order, keyed by Selcom's
+// order_id so a webhook delivery and a later sync of the same order update
+// the same row instead of double counting it.
+// ---------------------------------------------------------------------------
+
+model SelcomCollection {
+  id             String    @id @default(cuid())
+  orderId        String    @unique
+  transId        String?
+  reference      String?
+  channel        String? // e.g. MPESA-TZ, AIRTELMONEY, TIGOPESATZ, HALOPESA, card
+  msisdn         String?
+  amount         Decimal?  @db.Decimal(14, 2)
+  currency       String    @default("TZS")
+  paymentStatus  String // COMPLETED, PENDING, INPROGRESS, CANCELLED, USERCANCELED, REJECTED
+  resultCode     String?
+  orderCreatedAt DateTime?
+  paidAt         DateTime? // first time this order was seen as COMPLETED
+  source         String // webhook, sync
+  rawPayload     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentStatus, paidAt])
+  @@index([paidAt])
+}
+
+model IntegrationSyncRun {
+  id            String    @id @default(cuid())
+  provider      String // "selcom"
+  trigger       String // manual, cron
+  status        String // running, success, failed
+  rangeFrom     DateTime?
+  rangeTo       DateTime?
+  fetched       Int       @default(0)
+  upserted      Int       @default(0)
+  error         String?
+  triggeredById String?
+  triggeredBy   User?     @relation(fields: [triggeredById], references: [id])
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+
+  @@index([provider, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications: an in-app inbox row per recipient, fanned out to every
+// device the recipient enabled Web Push on (Android, desktop, and iOS 16.4+
+// when KASI is installed to the home screen).
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  String // decision, meeting, agreement, collection, system
+  title     String
+  body      String
+  url       String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Boardroom: founder agreements (loyalty, NDA, NCA, secrecy, conflict of
+// interest), decisions with recorded votes, and online meetings.
+// ---------------------------------------------------------------------------
+
+// Each edit publishes a NEW version rather than changing the old text, so a
+// signature always points at the exact wording that was signed. Signing is
+// per (template version, user): a new version needs everyone to sign again.
+model AgreementTemplate {
+  id            String   @id @default(cuid())
+  code          String // loyalty, nda, nca, secrecy, conflict
+  version       Int
+  title         String
+  summary       String
+  body          String
+  contentHash   String // SHA-256 of body, copied onto each signature
+  isCurrent     Boolean  @default(true)
+  publishedById String?
+  publishedBy   User?    @relation("AgreementPublisher", fields: [publishedById], references: [id])
+  publishedAt   DateTime @default(now())
+
+  signatures AgreementSignature[]
+
+  @@unique([code, version])
+  @@index([code, isCurrent])
+}
+
+// Append-only evidence of a signature: never updated or deleted.
+model AgreementSignature {
+  id             String            @id @default(cuid())
+  templateId     String
+  template       AgreementTemplate @relation(fields: [templateId], references: [id])
+  userId         String
+  user           User              @relation(fields: [userId], references: [id])
+  signedName     String
+  signatureImage String // PNG data URL of the drawn signature
+  contentHash    String
+  ipAddress      String?
+  userAgent      String?
+  signedAt       DateTime          @default(now())
+
+  @@unique([templateId, userId])
+  @@index([userId])
+}
+
+model Decision {
+  id             String    @id @default(cuid())
+  reference      String    @unique // e.g. DEC-2026-001
+  title          String
+  background     String
+  proposedAction String
+  category       String // board_resolution, shareholder_resolution
+  votingBasis    String // per_director, shareholding
+  threshold      String // simple_majority, special_75, unanimous
+  status         String    @default("open") // open, passed, rejected, withdrawn
+  // Snapshot of who may vote and with what weight, taken when the decision
+  // opens, so a later cap-table change cannot alter an open vote's maths.
+  electorate     Json // [{ userId, name, weight }]
+  closesAt       DateTime
+  closedAt       DateTime?
+  outcomeNote    String?
+  proposedById   String
+  proposedBy     User      @relation("DecisionProposer", fields: [proposedById], references: [id])
+  meetingId      String?
+  meeting        Meeting?  @relation(fields: [meetingId], references: [id])
+
+  votes    DecisionVote[]
+  comments DecisionComment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, closesAt])
+}
+
+// A cast vote is final: no update path exists.
+model DecisionVote {
+  id         String   @id @default(cuid())
+  decisionId String
+  decision   Decision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  choice     String // for, against, abstain
+  weight     Decimal  @db.Decimal(9, 4)
+  comment    String?
+  castAt     DateTime @default(now())
+
+  @@unique([decisionId, userId])
+}
+
+model DecisionComment {
+  id         String   @id @default(cuid())
+  decisionId String
+  decision   Decision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([decisionId, createdAt])
+}
+
+model Meeting {
+  id              String    @id @default(cuid())
+  title           String
+  agenda          String
+  kind            String // board, shareholders, management, general
+  scheduledAt     DateTime
+  durationMinutes Int       @default(60)
+  roomName        String    @unique // random, unguessable
+  status          String    @default("scheduled") // scheduled, ended, cancelled
+  minutes         String?
+  minutesAt       DateTime?
+  createdById     String
+  createdBy       User      @relation("MeetingCreator", fields: [createdById], references: [id])
+  reminderSentAt  DateTime?
+
+  invitees  MeetingInvitee[]
+  decisions Decision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scheduledAt])
+}
+
+model MeetingInvitee {
+  id        String    @id @default(cuid())
+  meetingId String
+  meeting   Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime?
+
+  @@unique([meetingId, userId])
+  @@index([userId])
 }

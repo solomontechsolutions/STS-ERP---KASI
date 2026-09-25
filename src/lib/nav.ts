@@ -8,6 +8,8 @@ import {
   Boxes,
   FolderKanban,
   ShieldCheck,
+  Gavel,
+  Video,
   FileText,
   ClipboardCheck,
   Settings,
@@ -16,7 +18,12 @@ import {
 export type NavItem = {
   label: string;
   href: string;
-  module: Module;
+  /**
+   * Who sees the item. A module means "holds module:view". "board" means a
+   * founder (a Director or Shareholder record, see lib/boardroom/members.ts),
+   * "everyone" means any signed-in user.
+   */
+  module: Module | "board" | "everyone";
 };
 
 export type NavGroup = {
@@ -37,6 +44,17 @@ export type SerializableNavGroup = {
   items: NavItem[];
 };
 
+/** Whether a user with these grants (and board status) sees a nav item. */
+export function canSeeNavItem(
+  item: NavItem,
+  grants: Set<string>,
+  isBoardMember: boolean,
+): boolean {
+  if (item.module === "everyone") return true;
+  if (item.module === "board") return isBoardMember;
+  return grants.has(`${item.module}:view`);
+}
+
 // Section 13.1 grouping. Modules not yet built (Phase 4+) still appear here
 // so the navigation shape is right from day one — each links to a route
 // that renders a real "not built yet" empty state rather than 404ing.
@@ -47,9 +65,27 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ label: "Dashboard", href: "/", module: "dashboard" }],
   },
   {
+    label: "Boardroom",
+    icon: Gavel,
+    items: [
+      { label: "Board overview", href: "/boardroom", module: "board" },
+      { label: "Decisions & votes", href: "/boardroom/decisions", module: "board" },
+      { label: "Founder agreements", href: "/boardroom/agreements", module: "board" },
+    ],
+  },
+  {
+    label: "Collaborate",
+    icon: Video,
+    items: [
+      { label: "Meetings", href: "/meetings", module: "everyone" },
+      { label: "Notifications", href: "/notifications", module: "everyone" },
+    ],
+  },
+  {
     label: "Finance",
     icon: Landmark,
     items: [
+      { label: "Collections (Selcom)", href: "/finance/collections", module: "banking" },
       { label: "Accounting", href: "/finance/accounting", module: "finance" },
       { label: "Banking & reconciliation", href: "/finance/banking", module: "banking" },
       { label: "Payroll", href: "/finance/payroll", module: "payroll" },

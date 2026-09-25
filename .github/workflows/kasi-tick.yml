@@ -1,0 +1,33 @@
+# Calls KASI's housekeeping endpoint every 10 minutes: Selcom sync (catches
+# missed payment callbacks), closing decisions past their deadline, and
+# meeting reminders. Vercel's Hobby plan only allows daily cron jobs, so this
+# runs the schedule from GitHub instead.
+#
+# Setup (repository Settings -> Secrets and variables -> Actions):
+#   KASI_URL     e.g. https://kasi.solomontechsolutions.com (no trailing slash)
+#   CRON_SECRET  the same value as the CRON_SECRET set on the deployment
+# Until both exist the job skips itself instead of failing.
+name: KASI tick
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call /api/cron/tick
+        env:
+          KASI_URL: ${{ secrets.KASI_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$KASI_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "KASI_URL or CRON_SECRET not set; skipping."
+            exit 0
+          fi
+          curl --fail-with-body -sS -m 90 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$KASI_URL/api/cron/tick"

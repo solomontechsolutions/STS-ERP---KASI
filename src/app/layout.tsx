@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -23,6 +23,21 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "KASI",
   description: "Solomon Tech Solutions — internal operating system",
+  applicationName: "KASI",
+  // iOS reads these (not the manifest) when KASI is added to the home screen.
+  appleWebApp: { capable: true, title: "KASI", statusBarStyle: "default" },
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f2647",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

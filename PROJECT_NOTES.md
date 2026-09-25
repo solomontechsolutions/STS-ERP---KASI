@@ -66,6 +66,31 @@ Built and working (verified with `npx tsc --noEmit`, `npx eslint .`, and
   changing `src/lib/rbac.ts` and re-seeding — no UI for authoring custom
   roles yet.
 
+- **Boardroom, collections, notifications, meetings (2026-09-25)**, built
+  at the user's request ahead of the phase plan. See README for setup.
+  - Selcom collections ledger (`SelcomCollection`, `/finance/collections`),
+    webhook at `/api/integrations/selcom/webhook` that verifies Selcom's own
+    HMAC signature (scheme copied from Selcom's reference PHP client), plus a
+    `list-orders` sync. This is a cash-receipts view, not yet posted to a
+    ledger: when the accounting module lands, journal each COMPLETED row.
+  - Boardroom access is derived from Director/Shareholder identity records
+    (`src/lib/boardroom/members.ts`), not RBAC, so no re-seed is needed.
+    Mjanaheri (5% shareholder, not a BRELA director) is in the Boardroom and
+    votes on shareholder resolutions but not board resolutions.
+  - Agreement templates are created lazily on first page load
+    (`ensureAgreementTemplates`) for the same reason. Wording is a draft
+    pending advocate review.
+  - Decision tallies count against the whole electorate snapshot taken when
+    the decision opens (written-resolution rule). If the board wants
+    "majority of votes cast at a meeting" semantics, that is a new threshold
+    option, not a change to the existing ones.
+  - Web Push (VAPID, `web-push`), service worker `public/sw.js` handles push
+    only and caches nothing on purpose (confidential data on phones).
+  - Meetings embed Jitsi; `/api/cron/tick` drives reminders and back-fill.
+  - Verified locally against Postgres 16 with a mock Selcom server and a
+    Playwright run-through. Not verifiable from the build sandbox: live
+    Jitsi video and real push delivery (outbound hosts blocked).
+
 **Not yet built:** anything from Phase 4 onward (finance/accounting,
 banking reconciliation, payroll, assets, inventory, sales, purchasing,
 projects, approval engine), Phase 5 governance record-keeping (resolutions/

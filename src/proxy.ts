@@ -34,6 +34,11 @@ export default auth((req) => {
   return NextResponse.next();
 });
 
+// The manifest, service worker and icons are fetched by the browser and the
+// OS without the session cookie (e.g. when installing to an iPhone home
+// screen), so they must never be redirected to /login.
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/).*)",
+  ],
 };
